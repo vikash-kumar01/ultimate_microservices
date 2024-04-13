@@ -14,10 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# [START gke_currencyservice_genproto]
+# [START gke_emailservice_genproto]
 
-# protos are loaded dynamically for node, simply copies over the proto.
-mkdir -p proto
-cp -r ../../protos/* ./proto
+python -m grpc_tools.protoc -I../../protos --python_out=. --grpc_python_out=. ../../protos/demo.proto
 
-# [END gke_currencyservice_genproto]
+# [END gke_emailservice_genproto]

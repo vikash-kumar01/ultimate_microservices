@@ -12,38 +12,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM node:20.2.0-alpine@sha256:f25b0e9d3d116e267d4ff69a3a99c0f4cf6ae94eadd87f1bf7bd68ea3ff0bef7 as base
+FROM python:3.10.8-slim@sha256:49749648f4426b31b20fca55ad854caa55ff59dc604f2f76b57d814e0a47c181 as base
 
 FROM base as builder
 
-# Some packages (e.g. @google-cloud/profiler) require additional
-# deps for post-install scripts
-RUN apk add --update --no-cache \
-    python3 \
-    make \
-    g++
+RUN apt-get -qq update \
+    && apt-get install -y --no-install-recommends \
+        wget g++ \
+    && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /usr/src/app
-
-COPY package*.json ./
-
-RUN npm install --only=production
-
-FROM base as without-grpc-health-probe-bin
-
-WORKDIR /usr/src/app
-
-COPY --from=builder /usr/src/app/node_modules ./node_modules
-
-COPY . .
-
-EXPOSE 7000
-
-ENTRYPOINT [ "node", "server.js" ]
-
-FROM without-grpc-health-probe-bin
-
+# Download the grpc health probe
 # renovate: datasource=github-releases depName=grpc-ecosystem/grpc-health-probe
 ENV GRPC_HEALTH_PROBE_VERSION=v0.4.18
 RUN wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /bin/grpc_health_probe
+
+# get packages
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+FROM base as without-grpc-health-probe-bin
+# Enable unbuffered logging
+ENV PYTHONUNBUFFERED=1
+# Enable Profiler
+ENV ENABLE_PROFILER=1
+
+WORKDIR /email_server
+
+# Grab packages from builder
+COPY --from=builder /usr/local/lib/python3.10/ /usr/local/lib/python3.10/
+
+# Add the application
+COPY . .
+
+EXPOSE 8080
+ENTRYPOINT [ "python", "email_server.py" ]
+
+FROM without-grpc-health-probe-bin
+
+COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
