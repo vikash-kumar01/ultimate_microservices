@@ -12,43 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.10.8-slim@sha256:49749648f4426b31b20fca55ad854caa55ff59dc604f2f76b57d814e0a47c181 as base
+FROM golang:1.20.4-alpine@sha256:0a03b591c358a0bb02e39b93c30e955358dadd18dc507087a3b7f3912c17fe13 as builder
+RUN apk add --no-cache ca-certificates git
+RUN apk add build-base
+WORKDIR /src
 
-FROM base as builder
+# restore dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
 
-RUN apt-get -qq update \
-    && apt-get install -y --no-install-recommends \
-        wget g++ \
-    && rm -rf /var/lib/apt/lists/*
+# Skaffold passes in debug-oriented compiler flags
+ARG SKAFFOLD_GO_GCFLAGS
+RUN go build -gcflags="${SKAFFOLD_GO_GCFLAGS}" -o /go/bin/shippingservice .
 
-# download the grpc health probe
+FROM alpine:3.18.0@sha256:02bb6f428431fbc2809c5d1b41eab5a68350194fb508869a33cb1af4444c9b11 as without-grpc-health-probe-bin
+RUN apk add --no-cache ca-certificates
+
+WORKDIR /src
+COPY --from=builder /go/bin/shippingservice /src/shippingservice
+ENV APP_PORT=50051
+
+# Definition of this variable is used by 'skaffold debug' to identify a golang binary.
+# Default behavior - a failure prints a stack trace for the current goroutine.
+# See https://golang.org/pkg/runtime/
+ENV GOTRACEBACK=single
+
+EXPOSE 50051
+ENTRYPOINT ["/src/shippingservice"]
+
+FROM without-grpc-health-probe-bin
 # renovate: datasource=github-releases depName=grpc-ecosystem/grpc-health-probe
 ENV GRPC_HEALTH_PROBE_VERSION=v0.4.18
 RUN wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /bin/grpc_health_probe
-
-# get packages
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-FROM base as without-grpc-health-probe-bin
-# Enable unbuffered logging
-ENV PYTHONUNBUFFERED=1
-
-# get packages
-WORKDIR /recommendationservice
-
-# Grab packages from builder
-COPY --from=builder /usr/local/lib/python3.10/ /usr/local/lib/python3.10/
-
-# Add the application
-COPY . .
-
-# set listen port
-ENV PORT "8080"
-EXPOSE 8080
-
-ENTRYPOINT ["python", "recommendation_server.py"]
-
-FROM without-grpc-health-probe-bin
-COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
