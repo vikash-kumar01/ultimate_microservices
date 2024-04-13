@@ -12,24 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.11.1-slim@sha256:1591aa8c01b5b37ab31dbe5662c5bdcf40c2f1bce4ef1c1fd24802dae3d01052 as base
+FROM node:20.2.0-alpine@sha256:f25b0e9d3d116e267d4ff69a3a99c0f4cf6ae94eadd87f1bf7bd68ea3ff0bef7 as base
 
 FROM base as builder
 
-COPY requirements.txt .
+# Some packages (e.g. @google-cloud/profiler) require additional
+# deps for post-install scripts
+RUN apk add --update --no-cache \
+    python3 \
+    make \
+    g++ 
 
-RUN pip install --prefix="/install" -r requirements.txt
+WORKDIR /usr/src/app
 
-FROM base
+COPY package*.json ./
 
-WORKDIR /loadgen
+RUN npm install --only=production
 
-COPY --from=builder /install /usr/local
+FROM base as without-grpc-health-probe-bin
 
-# Add application code.
-COPY locustfile.py .
+WORKDIR /usr/src/app
 
-# enable gevent support in debugger
-ENV GEVENT_SUPPORT=True
+COPY --from=builder /usr/src/app/node_modules ./node_modules
 
-ENTRYPOINT locust --host="http://${FRONTEND_ADDR}" --headless -u "${USERS:-10}" 2>&1
+COPY . .
+
+EXPOSE 50051
+
+ENTRYPOINT [ "node", "index.js" ]
+
+FROM without-grpc-health-probe-bin
+
+# renovate: datasource=github-releases depName=grpc-ecosystem/grpc-health-probe
+ENV GRPC_HEALTH_PROBE_VERSION=v0.4.18
+RUN wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
+    chmod +x /bin/grpc_health_probe
