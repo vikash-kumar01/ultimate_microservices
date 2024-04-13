@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# [START gke_paymentservice_genproto]
+# [START gke_productcatalogservice_genproto]
 
-# protos are loaded dynamically for node, simply copies over the proto.
-mkdir -p proto
-cp -r ../../protos/* ./proto
+PATH=$PATH:$GOPATH/bin
+protodir=../../protos
 
-# [END gke_paymentservice_genproto]
+protoc --go_out=plugins=grpc:genproto -I $protodir $protodir/demo.proto
+
+# [END gke_productcatalogservice_genproto]
