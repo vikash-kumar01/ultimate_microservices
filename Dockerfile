@@ -12,42 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.10.8-slim@sha256:49749648f4426b31b20fca55ad854caa55ff59dc604f2f76b57d814e0a47c181 as base
+FROM python:3.11.1-slim@sha256:1591aa8c01b5b37ab31dbe5662c5bdcf40c2f1bce4ef1c1fd24802dae3d01052 as base
 
 FROM base as builder
 
-RUN apt-get -qq update \
-    && apt-get install -y --no-install-recommends \
-        wget g++ \
-    && rm -rf /var/lib/apt/lists/*
-
-# Download the grpc health probe
-# renovate: datasource=github-releases depName=grpc-ecosystem/grpc-health-probe
-ENV GRPC_HEALTH_PROBE_VERSION=v0.4.18
-RUN wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
-    chmod +x /bin/grpc_health_probe
-
-# get packages
 COPY requirements.txt .
-RUN pip install -r requirements.txt
 
-FROM base as without-grpc-health-probe-bin
-# Enable unbuffered logging
-ENV PYTHONUNBUFFERED=1
-# Enable Profiler
-ENV ENABLE_PROFILER=1
+RUN pip install --prefix="/install" -r requirements.txt
 
-WORKDIR /email_server
+FROM base
 
-# Grab packages from builder
-COPY --from=builder /usr/local/lib/python3.10/ /usr/local/lib/python3.10/
+WORKDIR /loadgen
 
-# Add the application
-COPY . .
+COPY --from=builder /install /usr/local
 
-EXPOSE 8080
-ENTRYPOINT [ "python", "email_server.py" ]
+# Add application code.
+COPY locustfile.py .
 
-FROM without-grpc-health-probe-bin
+# enable gevent support in debugger
+ENV GEVENT_SUPPORT=True
 
-COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe
+ENTRYPOINT locust --host="http://${FRONTEND_ADDR}" --headless -u "${USERS:-10}" 2>&1
