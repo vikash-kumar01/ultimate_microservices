@@ -61,17 +61,17 @@ eksctl version
 ## Create EKS CLUSTER
 
 ```bash
-eksctl create cluster --name=EKS-1 \
+eksctl create cluster --name=Vikash-EKS \
                       --region=us-west-2 \
                       --zones=us-west-2a,us-west-2b \
                       --without-nodegroup
 
 eksctl utils associate-iam-oidc-provider \
     --region us-west-2 \
-    --cluster EKS-1 \
+    --cluster Vikash-EKS \
     --approve
 
-eksctl create nodegroup --cluster=EKS-1 \
+eksctl create nodegroup --cluster=Vikash-EKS \
                        --region=us-west-2 \
                        --name=node2 \
                        --node-type=t3.medium \
