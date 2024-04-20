@@ -62,17 +62,17 @@ eksctl version
 
 ```bash
 eksctl create cluster --name=EKS-1 \
-                      --region=ap-south-1 \
-                      --zones=ap-south-1a,ap-south-1b \
+                      --region=us-west-2 \
+                      --zones=us-west-2a,us-west-2b \
                       --without-nodegroup
 
 eksctl utils associate-iam-oidc-provider \
-    --region ap-south-1 \
+    --region us-west-2 \
     --cluster EKS-1 \
     --approve
 
 eksctl create nodegroup --cluster=EKS-1 \
-                       --region=ap-south-1 \
+                       --region=us-west-2 \
                        --name=node2 \
                        --node-type=t3.medium \
                        --nodes=3 \
