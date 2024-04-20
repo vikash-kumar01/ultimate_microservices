@@ -80,7 +80,7 @@ eksctl create nodegroup --cluster=Vikash-EKS \
                        --nodes-max=4 \
                        --node-volume-size=20 \
                        --ssh-access \
-                       --ssh-public-key=DevOps \
+                       --ssh-public-key=mrDevOps \
                        --managed \
                        --asg-access \
                        --external-dns-access \
